@@ -81,7 +81,7 @@
 
 系统执行层级为：
 
-$$
+```math
 \text{Task}
 \longrightarrow
 \text{Replicas}
@@ -89,7 +89,7 @@ $$
 \text{Gang Pods}
 \longrightarrow
 \text{Nodes/GPUs}.
-$$
+```
 
 - **Task**：用户提交的完整 batch 推理任务；
 - **Replica**：包含一份完整模型参数、能够独立处理 batch 分片的执行副本；
@@ -119,9 +119,9 @@ $$
 
 允许
 
-$$
+```math
 g_{jk}\in\{0.5,1,2,3,\ldots\}.
-$$
+```
 
 少量任务的单 Pod 需求可以为 0.5 GPU；大多数 Pod 需要一张或多张整数 GPU。即使 GPU 需求为 0.5，Pod 仍是不可拆分的离散放置单元。
 
@@ -131,7 +131,7 @@ $$
 
 任务 $j$ 的提交参数定义为
 
-$$
+```math
 \mathcal J_j=
 \left(
 a_j,\,
@@ -141,7 +141,7 @@ d_j,\,
 \overline r_j,\,
 \{p_{jk},g_{jk}\}_{k\in\mathcal K_j}
 \right),
-$$
+```
 
 其中：
 
@@ -155,9 +155,9 @@ $$
 
 任务不提交最小副本数，统一采用
 
-$$
+```math
 \underline r_j=0.
-$$
+```
 
 因此，已接纳任务可以排队、运行、缩容至零、暂停和再次恢复。
 
@@ -165,15 +165,15 @@ $$
 
 所有用户卡时采用统一口径。令
 
-$$
+```math
 \eta_k>0
-$$
+```
 
 表示 GPU 卡型 $k$ 相对于参考卡型的全局处理能力换算系数，并令
 
-$$
+```math
 \eta_{\mathrm{HC}}=1.
-$$
+```
 
 第一版模型假设 $\eta_k$ 只与 GPU 卡型有关，而不随任务变化。该换算关系用于任务启动前的准入估算，以及尚未在某种卡型上运行时的跨卡型吞吐外推。
 
@@ -181,11 +181,11 @@ $\widetilde H_j$ 不是准确的真实工作量，也不是任务的强制查杀
 
 在任务尚未运行、没有实时吞吐观测时，申报卡时给出初始的单位标准 GPU 处理效率：
 
-$$
+```math
 \widehat\nu_{j0}
 =
 \frac{1}{\widetilde H_j},
-$$
+```
 
 其中 $\widehat\nu_{j0}$ 表示一标准 GPU-hour 预计能够完成的任务比例。
 
@@ -205,11 +205,11 @@ $$
 
 真实的 $\mu_{jkt}$ 在任务运行前未知，并通过实际执行逐步揭露。对于尚未直接观测的卡型，可利用全局换算关系估计：
 
-$$
+```math
 \widehat\mu_{jkt}
 =
 q_{jk}\eta_k\widehat\nu_{jt}.
-$$
+```
 
 任务尚未运行时采用 $\widehat\nu_{jt}=\widehat\nu_{j0}$。任务运行后，系统根据已完成工作比例、实际运行时间和已使用 GPU 更新 $\widehat\nu_{jt}$。因此，卡型换算关系保持全局统一，而任务自身的处理效率通过在线观测动态修正。
 
@@ -219,12 +219,12 @@ $$
 
 任务的不同活跃副本处理独立 batch 分片。第一版采用副本间近似线性加速：
 
-$$
+```math
 \text{aggregate throughput}
 \approx
 \sum_{\text{active replicas}}
 \text{per-replica throughput}.
-$$
+```
 
 本文不建模训练任务中的全局同步、AllReduce 或最慢 worker 阻塞效应。
 
@@ -274,17 +274,17 @@ $$
 
 时间被离散为决策时点
 
-$$
+```math
 \mathcal T=\{0,1,\ldots,T\},
-$$
+```
 
 其中索引 $t$ 对应实际时间 $t\Delta$，相邻时点的实际时间间隔为 $\Delta$。第一版取 $\Delta=10$ 分钟。对实际到达时刻为 $a_j$ 的任务，定义其首次准入决策时点为
 
-$$
+```math
 \tau_j
 =
 \min\{t\in\mathcal T:t\Delta\ge a_j\}.
-$$
+```
 
 任务可以在两个决策点之间到达，但在最近的下一个决策点参加准入。资源释放、资源回收、吞吐变化和任务进度也在下一决策点汇总进入系统状态。
 
@@ -335,11 +335,11 @@ $$
 
 准入决策不可撤销，但接纳后的资源计划可以在后续决策时点修改。因此，这是：
 
-$$
+```math
 \text{irrevocable admission}
 +
 \text{adaptive resource recourse}.
-$$
+```
 
 调度器可以生成未来资源计划用于判断当前动作，但只执行当前决策周期的动作。未来计划不构成不可修改的资源预留。
 
@@ -372,33 +372,33 @@ $C_{nt}$ 和 $\mu_{jkt}$ 是在线变化且未来未知的环境量。
 
 #### 准入
 
-$$
+```math
 z_j\in\{0,1\},
-$$
+```
 
 其中 $z_j=1$ 表示任务 $j$ 被接纳。
 
 #### 副本资源域与卡型选择
 
-$$
+```math
 y_{jrdkt}\in\{0,1\},
-$$
+```
 
 其中 $y_{jrdkt}=1$ 表示任务 $j$ 的副本 $r$ 在时点 $t$ 被部署到资源域 $d$、GPU 卡型 $k$。该变量同时覆盖 setup 和 active 状态。
 
 #### Pod 放置
 
-$$
+```math
 x_{jrdkpnt}\in\{0,1\},
-$$
+```
 
 其中 $x_{jrdkpnt}=1$ 表示任务 $j$ 的副本 $r$ 中第 $p$ 个 Pod，在时点 $t$ 被放置到节点 $n\in\mathcal N_{dk}$。
 
 #### 活跃状态
 
-$$
+```math
 v_{jrdkt}\in\{0,1\},
-$$
+```
 
 其中 $v_{jrdkt}=1$ 表示该副本已经完成 setup，并在时点 $t$ 实际贡献吞吐。
 
@@ -410,11 +410,11 @@ $$
 
 只有已接纳任务可以获得资源：
 
-$$
+```math
 y_{jrdkt}\le z_j,
 \qquad
 \forall j,r,d,k,t.
-$$
+```
 
 对已经接纳的任务，后续不能由调度器撤销准入。
 
@@ -422,20 +422,20 @@ $$
 
 一个副本在同一时点最多位于一个资源域并使用一种 GPU 卡型：
 
-$$
+```math
 \sum_{d\in\mathcal D}
 \sum_{k\in\mathcal K_j}
 y_{jrdkt}
 \le 1,
 \qquad
 \forall j,r,t.
-$$
+```
 
 #### 9.4.3 最大副本数
 
 任务在所有资源域和卡型上的副本总数不得超过其提交上限：
 
-$$
+```math
 \sum_{r\in\mathcal R_j}
 \sum_{d\in\mathcal D}
 \sum_{k\in\mathcal K_j}
@@ -444,7 +444,7 @@ y_{jrdkt}
 \overline r_j z_j,
 \qquad
 \forall j,t.
-$$
+```
 
 由于最小副本数为零，该约束允许任务排队或暂停。
 
@@ -452,20 +452,20 @@ $$
 
 当副本选择资源域 $d$ 和卡型 $k$ 时，其每个 Pod 都必须恰好放置到一个兼容节点：
 
-$$
+```math
 \sum_{n\in\mathcal N_{dk}}
 x_{jrdkpnt}
 =
 y_{jrdkt},
 \qquad
 \forall j,r,d,k,p,t.
-$$
+```
 
 该约束允许同一副本的多个 Pod 放置到同一节点，但不允许单个 Pod 跨节点拆分。
 
 #### 9.4.5 节点 GPU 容量
 
-$$
+```math
 \sum_j
 \sum_{r\in\mathcal R_j}
 \sum_{p\in\mathcal P_{jk}}
@@ -474,7 +474,7 @@ g_{jk}x_{jrdkpnt}
 C_{nt},
 \qquad
 \forall d,k,n\in\mathcal N_{dk},t.
-$$
+```
 
 setup 和 active 副本都消耗 GPU 容量。
 
@@ -482,15 +482,15 @@ setup 和 active 副本都消耗 GPU 容量。
 
 活跃副本必须已分配完整资源：
 
-$$
+```math
 v_{jrdkt}\le y_{jrdkt}.
-$$
+```
 
 副本只有在同一资源域、同一卡型和同一组节点上连续占用资源达到 $L_j$ 个周期后，才能从 setup 转为 active。setup 期间：
 
-$$
+```math
 v_{jrdkt}=0.
-$$
+```
 
 若副本被删除、任意 Pod 被回收，或改变资源域、卡型和节点放置，则其 active 状态失效；未来重新启动时 setup 计时重新开始。
 
@@ -504,7 +504,7 @@ $$
 
 实际执行过程中，剩余 batch 工作量按照真实活跃吞吐更新：
 
-$$
+```math
 W_{j,t+1}
 =
 \left[
@@ -516,7 +516,7 @@ W_{jt}
 \sum_{k\in\mathcal K_j}
 \mu_{jkt}v_{jrdkt}
 \right]^+.
-$$
+```
 
 setup 副本不贡献吞吐。不同资源域和 GPU 卡型上的活跃副本处理量可以累加。
 
@@ -524,7 +524,7 @@ setup 副本不贡献吞吐。不同资源域和 GPU 卡型上的活跃副本处
 
 在线决策时，调度器不能使用未知的 $\mu_{jkt}$，而是使用当前估计 $\widehat\mu_{jkt}$ 生成计划：
 
-$$
+```math
 \widehat W_{j,t+1}
 =
 \left[
@@ -534,23 +534,23 @@ W_{jt}
 \sum_{r,d,k}
 \widehat\mu_{jkt}v_{jrdkt}
 \right]^+.
-$$
+```
 
 ### 9.6 完成、DDL 与 JCT
 
 任务完成时刻为
 
-$$
+```math
 C_j
 =
 \Delta\inf\{t\in\mathcal T: W_{jt}=0\}.
-$$
+```
 
 任务的 JCT 从用户提交时刻开始计算：
 
-$$
+```math
 \operatorname{JCT}_j=C_j-a_j.
-$$
+```
 
 JCT 包含：
 
@@ -565,11 +565,11 @@ JCT 包含：
 
 任务的 SLA 达成指标定义为
 
-$$
+```math
 S_j
 =
 \mathbf 1\{z_j=1,\ C_j\le d_j\}.
-$$
+```
 
 因此：
 
@@ -587,18 +587,18 @@ DDL 是高违约成本的业务 SLA，而不是在未知吞吐和未知资源回
 
 所有到达任务都进入 SLA 达成率的分母：
 
-$$
+```math
 \operatorname{SLA\ Attainment}
 =
 \frac{\sum_{j\in\mathcal J}S_j}
 {|\mathcal J|}.
-$$
+```
 
 首要目标为
 
-$$
+```math
 \max \sum_{j\in\mathcal J} S_j.
-$$
+```
 
 该定义同时惩罚拒绝和接纳后超时，避免“拒绝所有任务即可获得 100% SLA”的退化结果。
 
@@ -606,14 +606,14 @@ $$
 
 在 SLA 达成数量相同的情况下，进一步最小化任务 JCT。问题采用字典序目标：
 
-$$
+```math
 \operatorname{lexicographically\ optimize}
 \left(
 \max \sum_j S_j,\;
 \min \operatorname{MeanJCT},\;
 \min \operatorname{TailJCT}
 \right).
-$$
+```
 
 其中 TailJCT 可在实验中采用 P95、P99 或 CVaR 表示。SLA 的优先级严格高于 JCT。
 
@@ -645,11 +645,11 @@ $$
 
 调度器必须在未知未来到达、容量和吞吐下权衡：
 
-$$
+```math
 \text{current acceleration}
 \quad\text{vs.}\quad
 \text{future capacity opportunity}.
-$$
+```
 
 这使问题具有序贯决策和长期信用分配结构，适合使用 RL/DRL 学习未来状态价值或资源机会成本。
 
@@ -661,13 +661,13 @@ $$
 
 论文方法方向确定为：
 
-$$
+```math
 \boxed{
 \text{RL/DRL-based learning}
 +
 \text{combinatorial optimization}
 }.
-$$
+```
 
 当前只固定职责边界，不预先确定具体算法。
 

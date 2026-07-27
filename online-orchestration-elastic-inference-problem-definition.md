@@ -549,7 +549,7 @@ C_j
 任务的 JCT 从用户提交时刻开始计算：
 
 ```math
-\operatorname{JCT}_j=C_j-a_j.
+\mathrm{JCT}_j=C_j-a_j.
 ```
 
 JCT 包含：
@@ -588,7 +588,7 @@ DDL 是高违约成本的业务 SLA，而不是在未知吞吐和未知资源回
 所有到达任务都进入 SLA 达成率的分母：
 
 ```math
-\operatorname{SLA\ Attainment}
+\text{SLA Attainment}
 =
 \frac{\sum_{j\in\mathcal J}S_j}
 {|\mathcal J|}.
@@ -607,11 +607,11 @@ DDL 是高违约成本的业务 SLA，而不是在未知吞吐和未知资源回
 在 SLA 达成数量相同的情况下，进一步最小化任务 JCT。问题采用字典序目标：
 
 ```math
-\operatorname{lexicographically\ optimize}
+\text{lexicographically optimize}
 \left(
 \max \sum_j S_j,\;
-\min \operatorname{MeanJCT},\;
-\min \operatorname{TailJCT}
+\min \mathrm{MeanJCT},\;
+\min \mathrm{TailJCT}
 \right).
 ```
 

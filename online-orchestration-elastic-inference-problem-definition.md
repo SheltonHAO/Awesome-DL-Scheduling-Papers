@@ -591,16 +591,22 @@ b(\rho_j)
 0<\omega<1.
 ```
 
-$`\omega`$ 表示每增加相当于原始提交—DDL 窗口 $`5\%`$ 的迟交后，剩余交付价值所保留的比例。定义任务交付因子：
+$`\omega`$ 表示每增加相当于原始提交—DDL 窗口 $`5\%`$ 的迟交后，剩余交付价值所保留的比例。定义任务交付因子。若任务被拒绝或始终未完成，则
 
 ```math
-B_j
-=
-\begin{cases}
-0, & z_j=0\text{ or }C_j=+\infty,\\
-1, & z_j=1\text{ and }C_j\le d_j,\\
-b(\rho_j), & z_j=1\text{ and }d_j<C_j<+\infty.
-\end{cases}
+B_j=0.
+```
+
+若任务被接纳且按时完成，则
+
+```math
+B_j=1.
+```
+
+若任务被接纳但迟交，则
+
+```math
+B_j=b(\rho_j).
 ```
 
 因此，任何有限的迟交完成都严格优于永远不完成，但越晚交付，交付价值越低。由于未来容量、回收和处理速度未知，论文不声称对所有随机环境提供确定性零违约保证，而是在目标中显式惩罚接纳后的违约。
@@ -626,16 +632,12 @@ B_j-\kappa V_j
 
 $`\kappa`$ 是每单位任务价值对应的 SLA 违约价格，而不是某个任务的业务优先级。四类结果分别为：
 
-```math
-\begin{array}{c|c}
-\text{outcome} & U_j\\
-\hline
-\text{rejected} & 0\\
-\text{completed on time} & H_j\\
-\text{completed late} & H_j\left(b(\rho_j)-\kappa\right)\\
-\text{never completed} & -\kappa H_j
-\end{array}
-```
+| 任务结果 | 终局服务效用 |
+|---|---:|
+| 拒绝 | $`0`$ |
+| 按时完成 | $`H_j`$ |
+| 迟交完成 | $`H_j\left(b(\rho_j)-\kappa\right)`$ |
+| 始终未完成 | $`-\kappa H_j`$ |
 
 有限迟交比永远不完成多获得 $`H_jb(\rho_j)>0`$ 的交付价值，因此策略不会仅因任务已经错过 DDL 就将其永久饿死。策略 $`\pi`$ 的首要目标为
 

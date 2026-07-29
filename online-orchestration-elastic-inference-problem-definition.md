@@ -671,7 +671,7 @@ $L_{jt}>0$ 表示预计提前完成，$L_{jt}=0$ 表示刚好满足 DDL，$L_{jt
 =
 -
 \sum_{j\in\mathcal J_t^{\mathrm{acc}}}
-\operatorname{softplus}
+\mathrm{softplus}
 \left(
 -\frac{\widetilde L_{jt}}{\sigma}
 \right),

@@ -406,6 +406,41 @@ a_t=
 
 其中 $`\pi_t`$ 是底层 Gang packer 或 K8s/Volcano 为 $`\mathbf n_t`$ 返回的可执行 placement certificate。$`\pi_t`$ 不作为 RL 动作，也不通过显式 Pod-to-node 二元变量进入核心数学模型。
 
+#### 一个简单例子
+
+假设时点 $`t`$ 只有两台 HC 节点可用。Node A 和 Node B 均有 8 张 HC 卡，扣除已有任务后各剩 4 张空闲卡；这些节点余量及已有 placement 共同构成 $`s_t^{\mathrm{node}}`$。
+
+任务 $`j`$ 在 HC 上的 Gang 配置为
+
+```math
+\Gamma_{j,\mathrm{HC}}=(2,2),
+```
+
+表示一个副本包含 2 个 Pod，每个 Pod 占用 2 张 HC 卡。因此，一个完整副本共需要 4 张卡，且两个 Pod 必须同时启动。
+
+若上层决定
+
+```math
+n_{j,\mathrm{HC},t}=2,
+```
+
+并令其他矩阵元素为零，则 $`\mathbf n_t`$ 表示“下一周期运行任务 $`j`$ 的两个 HC 副本”。底层可以将第一个副本的两个 Pod 放在 Node A，将第二个副本的两个 Pod 放在 Node B。这个具体的 Pod-to-node 映射就是 $`\pi_t`$，因此
+
+```math
+\mathbf n_t\in\mathcal F_t(s_t^{\mathrm{node}}).
+```
+
+相反，若要求 $`n_{j,\mathrm{HC},t}=3`$，三个副本共需 12 张 HC 卡，而当前只有 8 张空闲卡，`GangPlace` 返回 `infeasible`，因此该 $`\mathbf n_t`$ 不属于可行集合。
+
+| 符号 | 本例中的含义 |
+|---|---|
+| $`s_t^{\mathrm{node}}`$ | Node A、Node B 各剩 4 张 HC 卡以及已有 placement |
+| $`\Gamma_{j,\mathrm{HC}}=(2,2)`$ | 每个副本包含 2 个 Pod，每个 Pod 使用 2 张 HC 卡 |
+| $`\mathbf n_t`$ | 上层在下一周期希望运行的全部任务—卡型副本数；本例只有 $`n_{j,\mathrm{HC},t}=2`$ |
+| $`\mathcal F_t(s_t^{\mathrm{node}})`$ | 在当前节点状态下，底层能够完成 Gang placement 的所有副本方案 |
+| $`\pi_t`$ | 两个副本的 4 个 Pod 到 Node A、Node B 的具体放置结果 |
+| $`a_t`$ | 若任务 $`j`$ 本周期被接纳，则最终动作包含 $`z_j=1`$、副本方案 $`\mathbf n_t`$ 和放置证明 $`\pi_t`$ |
+
 ---
 
 ## 8. 紧凑数学模型

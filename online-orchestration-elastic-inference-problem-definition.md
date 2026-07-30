@@ -10,7 +10,7 @@
 
 ## 1. 一句话问题定义
 
-本文研究高负载异构 GPU 集群中弹性离线推理任务的在线资源编排问题。任务随时间动态到达，并提交完成期限、带噪声的预估卡时、兼容 GPU 卡型对应的固定 Gang 配置和最大副本数。上层编排器周期性决定任务准入以及每个任务在不同卡型上的副本数量，并确保底层 K8s/Volcano 调度器能够完成 Gang placement。任务处理速度和完成时间在启动前未知，运行后根据实际进度逐步揭露；未来任务到达和可用容量同样未知。研究目标按任务离开系统后确定的相对价值奖励交付、惩罚接纳后的 SLA 违约，并采用 SLA-first learning + JCT-aware optimization 降低平均与尾部 Job Completion Time（JCT）。
+本文研究高负载异构 GPU 集群中弹性离线推理任务的在线资源编排问题。任务随时间动态到达，并提交完成期限、带噪声的预估卡时、兼容 GPU 卡型对应的固定 Gang 配置和最大副本数。上层编排器周期性决定任务准入以及每个任务在不同卡型上的副本数量，并确保底层 K8s/Volcano 调度器能够完成 Gang placement。任务处理速度和完成时间在启动前未知，运行后根据实际进度逐步揭露；未来任务到达和可用容量同样未知。研究以 SLA 服务效用为首要目标，按任务离开系统后确定的相对价值奖励交付并惩罚接纳后的 SLA 违约；Job Completion Time（JCT）作为次要业务与评价指标。
 
 ---
 
@@ -520,7 +520,7 @@ W_{jt}
 
 下一决策时点再用实际观测 $`\delta^{\mathrm{obs}}_{jt}`$ 修正状态。
 
-### 8.4 完成、DDL 与 JCT
+### 8.4 完成与 DDL
 
 任务实际完成时刻为
 
@@ -532,12 +532,6 @@ C_j
 ```
 
 若任务在研究周期内未完成，则令 $`C_j=+\infty`$。
-
-任务的 JCT 从用户实际提交时刻开始计算：
-
-```math
-\mathrm{JCT}_j=C_j-a_j.
-```
 
 定义请求 $`j`$ 的按时完成指标：
 
@@ -606,7 +600,9 @@ B_j=b(\rho_j).
 
 ### 9.1 首要目标：SLA 服务效用
 
-系统不额外设置人工业务优先级；任务间的终局价值差异统一由 $`v_j`$ 表示。任务 $`j`$ 的终局服务效用为
+一旦任务被接纳，其 DDL $`d_j`$ 即成为系统作出的 SLA 承诺。准入时拒绝不构成 SLA 违约；只有已接纳任务未能在 DDL 前完成时，才记为 SLA 违约。
+
+任务 $`j`$ 的终局服务效用为
 
 ```math
 U_j
@@ -619,16 +615,14 @@ B_j-\kappa V_j
 \kappa>0.
 ```
 
-$`\kappa`$ 是全局统一的、无量纲的 SLA 违约惩罚系数。它表示 SLA 违约相对于按时交付价值有多重要，而不是任务优先级、GPU 价格或违约概率。将任务效用除以 $`v_j`$ 后，每单位相对价值的含义非常直接：
+$`v_j`$ 是任务离开系统后由统一参考池得到的相对价值，$`B_j`$ 是交付价值因子，$`V_j`$ 表示是否发生接纳后 SLA 违约。$`\kappa`$ 是所有任务共享的 SLA 违约惩罚强度，不是任务优先级。
 
-| 任务结果 | 每单位相对价值的效用 |
+| 任务结果 | 终局效用 |
 |---|---:|
 | 准入时拒绝 | $`0`$ |
-| 按时完成 | $`+1`$ |
-| 迟交完成 | $`b(\rho_j)-\kappa`$ |
-| 始终未完成 | $`-\kappa`$ |
-
-例如，$`\kappa=2`$ 表示：一单位已接纳任务价值发生 SLA 违约所产生的惩罚，是该单位价值按时交付收益的两倍。所有任务使用相同的 $`\kappa`$；任务 $`j`$ 的总效用等于表中的单位效用乘以 $`v_j`$。
+| 按时完成 | $`v_j`$ |
+| 迟交完成 | $`v_j[b(\rho_j)-\kappa]`$ |
+| 始终未完成 | $`-\kappa v_j`$ |
 
 有限迟交比永远不完成多获得 $`v_jb(\rho_j)>0`$ 的交付价值，因此策略不会仅因任务已经错过 DDL 就将其永久饿死。策略 $`\pi`$ 的首要目标为
 
@@ -641,25 +635,9 @@ U_j
 \right].
 ```
 
-下面用一个仅用于解释 $`\kappa`$ 的简化例子说明其对准入的影响。暂时忽略资源竞争和迟交后的剩余交付价值，设调度器根据准入时可见信息判断任务 $`j`$ 按时完成的可能性为 $`p_j`$。接纳该任务后，每单位相对价值的平均效用为
+论文扫描多个 $`\kappa`$ 取值，展示任务服务价值与 SLA 违约率之间的权衡；$`\kappa`$ 越大，策略越重视避免已经作出的 SLA 承诺被违反。
 
-```math
-p_j-\kappa(1-p_j).
-```
-
-其中，第一项是按时完成带来的价值，第二项是接纳后违反 SLA 的风险成本。该平均效用为正需要
-
-```math
-p_j
->
-\frac{\kappa}{1+\kappa}.
-```
-
-因此，若 $`\kappa=1`$，按时完成的可能性需要高于 $`50\%`$；若 $`\kappa=4`$，则需要高于 $`80\%`$。$`p_j`$ 只是帮助理解的概念，不要求第一版系统显式训练或输出一个按时完成概率。实际算法基于准入时能够观察到的任务信息和系统状态，联合选择本周期的接纳任务子集，并通过终局反馈学习长期收益，同时考虑迟交价值、资源竞争、未来容量机会成本和 Gang 可行性。
-
-论文不为 $`\kappa`$ 指定唯一数值，而是扫描多个取值，刻画按时服务价值与 SLA 违约率之间的 Pareto 前沿。$`\kappa`$ 越大，策略越重视避免已经作出的 SLA 承诺被违反；部署时可根据目标风险水平选择运行点。
-
-### 9.2 次要目标：JCT
+### 9.2 JCT 与业务评价指标
 
 令
 
@@ -672,6 +650,10 @@ p_j
 所有最终完成的已接纳任务，包括迟交任务，均进入 JCT 统计：
 
 ```math
+\mathrm{JCT}_j
+:=
+C_j-a_j,
+\qquad
 \mathrm{MeanJCT}
 =
 \frac{1}{|\mathcal J^{\mathrm{comp}}|}
@@ -679,74 +661,52 @@ p_j
 (C_j-a_j).
 ```
 
-本文不把 JCT 奖励直接加入 RL 的终局效用，因为任意有限权重都会把严格的 SLA-first 目标改成普通加权和。学习模块优化长期服务效用或未来容量价值，内层组合优化器在服务效用相同或近似相同的候选动作中最小化预测 JCT。
+JCT 从用户提交时刻开始计算，因此包含排队、运行、暂停和启动等待。SLA 是首要目标；当 SLA 表现相近时，较低的 JCT 更优。JCT 作为独立的业务与评价指标，不直接加入终局 RL 效用。
 
-令 $`\mathcal A_t(s_t)`$ 为当前 Gang-feasible 动作集合，$`F_t^{\mathrm{svc}}(a)`$ 为结合 learning 输出得到的当前服务目标，先求
-
-```math
-F_t^\star
-=
-\max_{a\in\mathcal A_t(s_t)}
-F_t^{\mathrm{svc}}(a),
-```
-
-再求
+核心业务指标定义为
 
 ```math
-\min_{a\in\mathcal A_t(s_t)}
-G_t^{\mathrm{JCT}}(a)
-\quad
-\text{s.t.}
-\quad
-F_t^{\mathrm{svc}}(a)
-\ge
-F_t^\star-\epsilon_F.
-```
-
-$`G_t^{\mathrm{JCT}}`$ 是基于当前进度与吞吐估计得到的预测完成时间代价。$`\epsilon_F=0`$ 表示只在服务目标完全相同的动作之间优化 JCT；较小的 $`\epsilon_F>0`$ 允许以近似无损的服务效用改善 JCT。第一版方法定位为 **SLA-first learning + JCT-aware optimization**，不声称训练了一个全局严格词典序 RL policy。TailJCT 可采用 P95、P99 或 CVaR。
-
-### 9.3 评价指标与训练奖励
-
-业务评价指标与 RL 训练奖励分开定义。任务数量口径至少报告：
-
-```math
-\mathrm{OnTimeJobRate}
-=
-\frac{\sum_jS_j}{|\mathcal J|},
-\qquad
 \mathrm{AdmissionRate}
 =
 \frac{\sum_jz_j}{|\mathcal J|},
+\qquad
+\mathrm{SLAComplianceRate}
+:=
+\frac{\sum_jS_j}
+{\max\{1,\sum_jz_j\}}.
 ```
 
-以及
+同时报告：
 
 ```math
 \mathrm{ViolationRate}
-=
+:=
 \frac{\sum_jV_j}
 {\max\{1,\sum_jz_j\}}.
 ```
 
-同时报告终局价值口径：
+`SLAComplianceRate` 只在已接纳任务中统计按时完成比例，`ViolationRate` 统计接纳后违反 SLA 的比例，从而将“接纳能力”和“履约能力”分开评价。实验同时报告总服务效用 $`\sum_jU_j`$。
+
+少量解释性指标包括：
+
+- 各卡型 GPU 利用情况；
+- 不同任务规模区间的接纳率与 SLA 达成率；
+- 副本伸缩行为与 Gang placement 成功率；
+- ……
+
+### 9.3 RL 训练中的稀疏奖励
+
+业务效用只在任务完成、取消或评估结束时结算，因此直接使用 $`U_j`$ 会产生稀疏且延迟的 RL 奖励。令 $`\mathcal E_t`$ 表示本周期完成终局结算的任务集合，则
 
 ```math
-\mathrm{OnTimeValueShare}
+r_t^{\mathrm{terminal}}
 =
-\frac{\sum_{j:z_j=1}v_jS_j}
-{\max\{\varepsilon,\sum_{j:z_j=1}v_j\}},
-\qquad
-\mathrm{ValueWeightedViolationRate}
-=
-\frac{\sum_{j:z_j=1}v_jV_j}
-{\max\{\varepsilon,\sum_{j:z_j=1}v_j\}},
+\sum_{j\in\mathcal E_t}U_j.
 ```
 
-其中 $`\varepsilon>0`$ 只用于避免分母为零，拒绝任务的终局效用为零，无需为其事先估计 $`v_j`$。主实验扫描 $`\kappa`$，展示按时服务价值与 value-weighted SLA 违约率之间的 Pareto 前沿；同时按申报卡时分桶报告全部请求的 admission rate，并在已接纳任务中按终局价值分位报告按时完成率与违约率。
+为给准入和副本调整提供及时反馈，训练时使用基于 DDL laxity 的 potential-based reward shaping。
 
-最终业务评价仍由服务效用、接纳后违约和 JCT 决定。为了缓解任务结束前奖励稀疏和长期信用分配困难，RL 可以使用基于 DDL laxity 的 potential-based reward shaping。
-
-令 $`s_t`$ 汇总时点 $`t`$ 的任务进度、最近吞吐估计、当前副本、可用容量和节点状态。内层优化器基于 $`s_t`$ 生成一个确定的参考计划，并得到任务 $`j`$ 的预计完成时刻 $`\widehat C_j(s_t)`$。定义计划 laxity：
+内层优化器根据当前状态 $`s_t`$ 和最新吞吐估计得到任务 $`j`$ 的预计完成时刻 $`\widehat C_j(s_t)`$。定义计划 laxity：
 
 ```math
 L_{jt}
@@ -754,36 +714,12 @@ L_{jt}
 d_j-\widehat C_j(s_t).
 ```
 
-$`L_{jt}>0`$ 表示预计提前完成，$`L_{jt}=0`$ 表示刚好满足 DDL，$`L_{jt}<0`$ 表示当前计划存在违约风险。为便于比较不同 DDL 长度的任务，定义归一化 laxity：
-
-```math
-\widetilde L_{jt}
-=
-\frac{L_{jt}}
-{\max\{d_j-t\Delta,\Delta\}}.
-```
-
-状态 potential $`\Phi(s_t)`$ 汇总所有已接纳未完成任务的 SLA 风险。例如：
-
-```math
-\Phi(s_t)
-=
--
-\sum_{j\in\mathcal J_t^{\mathrm{acc}}}
-\mathrm{softplus}
-\left(
--\frac{\widetilde L_{jt}}{\sigma}
-\right),
-\qquad
-\sigma>0.
-```
-
-laxity 越小，$`\Phi(s_t)`$ 越低。采用有限时域、无时间折扣的回报，即 $`\gamma=1`$，避免仅因大任务完成较晚而产生额外的小任务偏好。训练奖励采用
+$`L_{jt}>0`$ 表示预计能够提前完成，$`L_{jt}<0`$ 表示存在违约风险。令 $`\Phi(s_t)`$ 汇总所有已接纳未完成任务的 SLA 安全程度；总体 laxity 越大，$`\Phi(s_t)`$ 越高。训练奖励定义为
 
 ```math
 r_t^{\mathrm{train}}
 =
-r_t^{\mathrm{service}}
+r_t^{\mathrm{terminal}}
 +
 \lambda_{\mathrm{shape}}
 \left[
@@ -791,23 +727,7 @@ r_t^{\mathrm{service}}
 \right],
 ```
 
-其中 $`r_t^{\mathrm{service}}`$ 只累计本周期终局结算的 $`U_j`$。任务跨过 DDL 时只更新 $`V_j`$ 和风险状态，不提前结算终局效用；当任务完成、被用户取消或在评估期末统一结算时，系统根据其实际执行信息得到 $`v_j`$，并一次性结算 $`U_j`$。训练奖励不加入 JCT bonus；JCT 由内层优化器的第二阶段目标处理。完成或外部取消的任务从 active state 中移除，但仅到达 DDL 的未完成任务继续保留；episode 终止状态的 potential 设为零。Potential 差值为扩容、暂停和准入决策提供中间风险信号，但不替代最终服务效用。具体 potential 形式和 $`\lambda_{\mathrm{shape}}`$ 将通过消融实验验证。
-
-### 9.4 解释性指标
-
-以下指标用于解释策略行为，但不高于 SLA 与 JCT：
-
-- GPU 资源占用率与有效利用率；
-- 各卡型利用情况；
-- 任务接纳率与拒绝率；
-- 按申报卡时 $`\widetilde H_j`$ 分桶的接纳率，以及已接纳任务按 $`v_j`$ 分位统计的按时完成率与违约率；
-- 申报卡时与实际 GPU 卡时的偏差分布及 prior 噪声敏感性；
-- 迟交完成率、相对迟交 $`\rho_j`$ 和未完成率；
-- 副本 scale-up、scale-down 和暂停次数；
-- 吞吐估计误差及观测陈旧程度；
-- 上层在线决策时间；
-- Gang placement 成功率与底层放置时间；
-- 仅使用聚合容量时产生的 placement infeasibility rate。
+若一个动作改善了已接纳任务的预计完成余量，则 potential 差值为正；若动作增加了 SLA 风险，则该差值为负。它只提供中间学习信号，不替代终局业务效用；在评估期末将 potential 置零后，这些中间差值在整条轨迹上相互抵消。JCT 不作为额外 RL bonus，具体 $`\Phi`$ 形式和 $`\lambda_{\mathrm{shape}}`$ 在方法与消融实验中确定。
 
 ---
 
@@ -857,7 +777,7 @@ RL/DRL 不直接生成 Pod-to-node placement。
 - 每个任务在每种兼容卡型上的副本数；
 - 哪些候选方案进入底层 Gang feasibility check。
 
-同一周期到达的全部新任务进行联合准入，而不是按固定顺序逐个独立判断；优化器联合选择接纳子集和所有已接纳任务的副本方案。优化采用 9.2 节的两阶段结构：先优化 $`F_t^{\mathrm{svc}}`$，再在服务目标相同或 $`\epsilon_F`$-近似相同的可行动作中最小化 $`G_t^{\mathrm{JCT}}`$。
+同一周期到达的全部新任务进行联合准入，而不是按固定顺序逐个独立判断；优化器联合选择接纳子集和所有已接纳任务的副本方案。优化以 SLA 服务效用为主；当候选动作的 SLA 表现相近时，可以优先选择预测 JCT 更低的方案。
 
 最终动作必须同时满足：
 
@@ -906,11 +826,11 @@ RL/DRL 不直接生成 Pod-to-node placement。
 
 ### 中文
 
-本文研究高负载异构 GPU 集群中弹性离线推理任务的在线资源编排。任务在线到达，并提交完成期限、带噪声的预估卡时、最大副本数以及不同兼容 GPU 卡型对应的固定 Gang 配置。上层编排器周期性联合决定新任务准入以及各任务在不同卡型上的副本数量，并通过 Gang-feasible allocation set 确保底层 K8s/Volcano 调度器能够完成实际放置。任务处理速度和完成时间在启动前未知，运行后根据实际进度与最近一次有效吞吐观测逐步揭露；未来任务到达与可用容量同样未知。终局服务效用由任务离开系统后、基于实际 GPU 卡时与 batch 信息在历史完成任务池中得到的分位数归一化相对价值加权，奖励按时或迟交完成，并惩罚接纳后的 SLA 违约。方法采用 SLA-first learning + JCT-aware optimization：RL/DRL 学习长期服务价值，DDL-laxity shaping 提供中间训练信号，组合优化器在服务等价方案中进一步降低 JCT，并由 Gang feasibility check 保证动作可执行。
+本文研究高负载异构 GPU 集群中弹性离线推理任务的在线资源编排。任务在线到达，并提交完成期限、带噪声的预估卡时、最大副本数以及不同兼容 GPU 卡型对应的固定 Gang 配置。上层编排器周期性联合决定新任务准入以及各任务在不同卡型上的副本数量，并通过 Gang-feasible allocation set 确保底层 K8s/Volcano 调度器能够完成实际放置。任务处理速度和完成时间在启动前未知，运行后根据实际进度与最近一次有效吞吐观测逐步揭露；未来任务到达与可用容量同样未知。终局服务效用由任务离开系统后、基于实际 GPU 卡时与 batch 信息在历史完成任务池中得到的分位数归一化相对价值加权，奖励按时或迟交完成，并惩罚接纳后的 SLA 违约。方法采用 SLA-first learning + optimization：RL/DRL 学习长期服务价值，DDL-laxity shaping 提供中间训练信号，组合优化与 Gang feasibility check 保证动作可执行；JCT 作为次要业务与评价指标。
 
 ### English
 
-We study online orchestration of elastic offline-inference jobs in high-load heterogeneous GPU clusters. Jobs arrive with completion deadlines, noisy GPU-hour estimates, maximum replica counts, and fixed gang configurations for their compatible GPU types. At each decision epoch, an upper-level orchestrator jointly selects a subset of newly arrived jobs and the number of replicas assigned to each configuration. Its decisions must belong to a gang-feasible allocation set so that the underlying K8s/Volcano scheduler can construct a valid pod-to-node placement. Processing rates and completion times are initially unknown and are progressively revealed from execution, while future arrivals and available capacity remain unknown. Terminal service utility is weighted by a percentile-normalized relative job value assigned after the job leaves the system from its realized GPU-hour footprint and batch information; it assigns diminishing positive value to late completion and penalizes post-admission SLA violations. We combine SLA-first RL/DRL with JCT-aware combinatorial optimization and gang-feasibility verification; DDL-laxity shaping supplies intermediate learning signals without adding JCT to the terminal reward.
+We study online orchestration of elastic offline-inference jobs in high-load heterogeneous GPU clusters. Jobs arrive with completion deadlines, noisy GPU-hour estimates, maximum replica counts, and fixed gang configurations for their compatible GPU types. At each decision epoch, an upper-level orchestrator jointly selects a subset of newly arrived jobs and the number of replicas assigned to each configuration. Its decisions must belong to a gang-feasible allocation set so that the underlying K8s/Volcano scheduler can construct a valid pod-to-node placement. Processing rates and completion times are initially unknown and are progressively revealed from execution, while future arrivals and available capacity remain unknown. Terminal service utility is weighted by a percentile-normalized relative job value assigned after the job leaves the system from its realized GPU-hour footprint and batch information; it assigns diminishing positive value to late completion and penalizes post-admission SLA violations. We combine SLA-first RL/DRL with combinatorial optimization and gang-feasibility verification; DDL-laxity shaping supplies intermediate learning signals, while JCT is reported as a secondary business metric.
 
 ---
 
